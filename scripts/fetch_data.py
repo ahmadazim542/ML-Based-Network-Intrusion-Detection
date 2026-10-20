@@ -17,8 +17,11 @@ Run `python scripts/fetch_data.py list` to see the files and sizes in both archi
 from __future__ import annotations
 
 import argparse
+import http.client
 import io
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -56,13 +59,27 @@ class HttpRangeFile(io.RawIOBase):
         self.pos = {0: offset, 1: self.pos + offset, 2: self.size + offset}[whence]
         return self.pos
 
-    def readinto(self, b):
+    def readinto(self, b, retries: int = 12):
         n = min(len(b), self.size - self.pos)
         if n <= 0:
             return 0
         req = urllib.request.Request(self.url, headers={"Range": f"bytes={self.pos}-{self.pos + n - 1}"})
-        with urllib.request.urlopen(req) as r:
-            data = r.read()
+        # A multi-GB stream over a slow intercontinental link will see dropped connections (and a
+        # laptop that sleeps kills every open socket). Each request is a byte range, so retrying
+        # it resumes exactly where the stream stopped.
+        for attempt in range(retries):
+            try:
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    data = r.read()
+                if len(data) == n:
+                    break
+                raise http.client.IncompleteRead(data, n - len(data))
+            except (http.client.HTTPException, urllib.error.URLError, OSError) as e:
+                if attempt == retries - 1:
+                    raise
+                wait = min(2 ** attempt, 120)
+                print(f"\n  range {self.pos}: {type(e).__name__}; retry {attempt + 1} in {wait}s", flush=True)
+                time.sleep(wait)
         b[: len(data)] = data
         self.pos += len(data)
         return len(data)

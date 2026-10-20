@@ -38,7 +38,7 @@ which fixes known flow-construction and labelling errors in the original CSVs.
 ```bash
 python scripts/fetch_data.py list          # show files and sizes in both archives
 python scripts/fetch_data.py cicids2017    # -> data/raw/cicids2017_fixed/*.csv
-python scripts/fetch_data.py cicids2018    # 5 days, all attacks + 5% of benign -> parquet
+caffeinate -i python scripts/fetch_data.py cicids2018   # 5 days, all attacks + 5% benign; ~1-2 h, keep the Mac awake
 ```
 
 The full 2018 archive is 9.7 GB, so the fetch script never downloads it. It reads single day
