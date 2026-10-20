@@ -1,0 +1,20 @@
+# Tiny settings for checking the pipeline runs end-to-end on synthetic data in ~2 minutes:
+#   python -m ids.synthetic && ids all --config configs/smoke.yaml
+# Results land in results/smoke/, so they never mix with real runs.
+paths:
+  processed: data/processed/smoke
+  results: results/smoke
+dataset:
+  dir: data/raw/synthetic/cicids2017
+cross_dataset:
+  target_dir: data/raw/synthetic/cicids2018
+preprocess: {max_benign_rows: 4000, min_class_rows: 30}
+split: {cv_folds: 3, cv_sample_rows: 3000}
+features: {top_k: 12, rank_sample_rows: 3000}
+imbalance: {smote_min_rows: 400}
+models:
+  max_train_rows: {svm: 1500, mlp: 3000}
+  search: {enabled: true, n_iter: 2, cv_folds: 2, sample_rows: 1500}
+deploy: {latency_samples: 50, batch_size: 500}
+explain: {background_rows: 100, explain_rows: 200, local_examples: 2}
+loao: {max_train_rows: 3000}

@@ -1,0 +1,8 @@
+# Fast first pass on the real data: small tuning budget, no per-fold CV.
+#   ids benchmark --config configs/quick.yaml --skip-cv && ids report --config configs/quick.yaml
+# Shares the prepared dataset cache with default.yaml but writes results to results/quick/,
+# so its (weaker) tuning.json never gets reused by the full run.
+paths:
+  results: results/quick
+models:
+  search: {enabled: true, n_iter: 3, cv_folds: 2, sample_rows: 50000}

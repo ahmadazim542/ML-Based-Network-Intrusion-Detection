@@ -1,0 +1,92 @@
+# Single source of truth for every experiment. Change values here, not in notebooks,
+# so that every model sees exactly the same data and settings (Gap 1 in the proposal).
+
+seed: 42
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  results: results
+
+dataset:
+  name: cicids2017_fixed          # corrected CICIDS2017 (Engelen et al. / Liu et al. CNS 2022)
+  dir: data/raw/cicids2017_fixed  # folder holding monday.csv ... friday.csv
+  # "Attempted" flows contain no real attack payload; the dataset authors say to treat them as benign.
+  attempted_as_benign: true
+
+preprocess:
+  drop_duplicates: true
+  near_zero_variance: 1.0e-8
+  # Benign flows vastly outnumber attacks. Keeping all of them is not needed to learn
+  # the benign class and does not fit in 8 GB RAM once SMOTE runs, so cap them.
+  max_benign_rows: 600000
+  # Multi-class only: families smaller than this cannot be measured reliably (Heartbleed has
+  # ~11 flows, i.e. 2 in a 20% test split). They stay in the binary and LOAO experiments.
+  min_class_rows: 100
+
+split:
+  test_size: 0.2
+  # random     -> stratified random split over flows (what most papers do)
+  # time_block -> flows grouped into time buckets so near-identical neighbouring flows
+  #               cannot land on both sides of the split (leakage check)
+  strategy: random
+  time_block_minutes: 5
+  cv_folds: 5
+  # per-fold CV for the significance tests runs on at most this many training rows
+  cv_sample_rows: 300000
+
+features:
+  corr_threshold: 0.95
+  # Number of features kept after correlation pruning, ranked by RF importance.
+  # null keeps everything that survives correlation pruning.
+  top_k: 30
+  rank_sample_rows: 200000
+
+imbalance:
+  # strategies compared in the benchmark: none | class_weight | smote
+  strategies: [none, class_weight, smote]
+  # SMOTE raises each minority class to at least this many rows (not full balance: that
+  # would turn ~600k benign rows into millions of synthetic rows).
+  smote_min_rows: 20000
+
+task: multiclass   # multiclass | binary
+
+models:
+  # rows used to fit each model; SVM (RBF) is quadratic in n so it gets a hard cap
+  max_train_rows:
+    logreg: null
+    random_forest: null
+    xgboost: null
+    svm: 60000
+    mlp: 400000
+  search:
+    enabled: true
+    n_iter: 12            # RandomizedSearchCV budget per model (fixed and documented)
+    cv_folds: 3
+    sample_rows: 150000   # tuning runs on a stratified subsample to stay within the time budget
+  list: [logreg, random_forest, xgboost, svm, mlp]
+
+evaluation:
+  fpr_targets: [0.001, 0.01]   # report detection rate at these false-positive rates
+
+deploy:
+  latency_samples: 1000
+  batch_size: 10000
+
+explain:
+  model: xgboost
+  background_rows: 2000
+  explain_rows: 5000
+  local_examples: 5
+
+cross_dataset:
+  # target dataset evaluated WITHOUT retraining (binary benign/attack only, since
+  # attack taxonomies differ between datasets)
+  target: cicids2018_fixed
+  target_dir: data/raw/cicids2018_fixed
+
+loao:
+  # leave-one-attack-out: binary detector trained without one family, tested on it
+  model: xgboost
+  strategy: none
+  max_train_rows: 400000
